@@ -1,0 +1,23 @@
+
+death_from_unsafe_water_sources = 800k to 1.8M // [1]
+population_without_safe_water_sources = 1.5B // [2]
+percent_annual_death_from_unsafe_sources = death_from_unsafe_water_sources / population_without_safe_water_sources
+
+people_per_sensor = 100 to 20k // In practice, this has room for optimization in tradeoffs against costs.
+chance_of_successful_protection = beta(.5,12)   // a conservative rough estimate of 1 in 25 people protected, with high variance.
+                                                // Median of about 1/50, 90% CI of about [1/6000, 1/7]. 
+people_protected_per_sensor = people_per_sensor * chance_of_successful_protection
+deaths_averted_per_sensor = people_protected_per_sensor * percent_annual_death_from_unsafe_sources
+
+sensor_cost_per_year = 30 to 400 // dollars. Can be co-optimized with people per sensor.
+
+total_lives_saved_per_dollar = deaths_averted_per_sensor / sensor_cost_per_year
+dollars_per_life_saved = 1 / total_lives_saved_per_dollar
+
+dalys_from_unsafe_water_sources = 45M to 85M // [1]
+death_to_daly_factor = dalys_from_unsafe_water_sources / death_from_unsafe_water_sources
+total_dalys_saved_per_dollar = total_lives_saved_per_dollar * death_to_daly_factor
+dollars_per_daly_saved = 1 / total_dalys_saved_per_dollar
+
+// [1] https://vizhub.healthdata.org/gbd-results/  
+// [2] https://www.who.int/news-room/fact-sheets/detail/drinking-water 
