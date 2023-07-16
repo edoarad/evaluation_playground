@@ -1,0 +1,25 @@
+cost_effectiveness(cost, effect) = {
+    cost / effect
+}
+result(charity_cost, total_cost, effect_in_doubling_consumption, effect_in_DALYs) = {
+    Plot.dists({
+        dists: [
+            {name: "charity$/doubling", value: cost_effectiveness(charity_cost, effect_in_doubling_consumption)},
+            {name: "charity$/DALY", value: cost_effectiveness(charity_cost, effect_in_DALYs)},
+            {name: "total$/doubling", value: cost_effectiveness(total_cost, effect_in_doubling_consumption)},
+            {name: "total$/DALY", value: cost_effectiveness(total_cost, effect_in_DALYs)}
+        ]
+    })
+}
+
+npv(discount_rate, cashflows) = {
+    List.reduceReverse(cashflows, 0, {|x,y| x/(1+discount_rate)+y})
+}
+
+//result(900 to 1000, 1000, 25, 11)
+test_sq(x) = {
+    x*x
+}
+a = [0, 0, 100]
+//npv(0.5, a)
+test_sq(-3 to 4)
