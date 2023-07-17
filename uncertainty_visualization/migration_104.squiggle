@@ -1,0 +1,126 @@
+// -------------------------
+// general functions 
+// -------------------------
+cost_effectiveness(cost, effect) = {
+    cost / effect
+}
+result(charity_cost, total_cost, effect_in_doubling_consumption, effect_in_DALYs) = {
+    Plot.dists({
+        dists: [
+            {name: "charity$/doubling", value: cost_effectiveness(charity_cost, effect_in_doubling_consumption)},
+            {name: "charity$/DALY", value: cost_effectiveness(charity_cost, effect_in_DALYs)},
+            {name: "total$/doubling", value: cost_effectiveness(total_cost, effect_in_doubling_consumption)},
+            {name: "total$/DALY", value: cost_effectiveness(total_cost, effect_in_DALYs)}
+        ]
+    })
+}
+
+npv(discount_rate, cashflows) = {
+    List.reduceReverse(cashflows, 0, {|x,y| x/(1+discount_rate)+y})
+}
+
+// This allows the same variable to be used in multiple locations without error
+ss(x) = { //ss stands for "sample set"
+    SampleSet.fromDist(x)
+}
+
+// -------------------------
+// Key parameters and assumptions [Rwanda]
+// -------------------------
+
+// Intervention timing
+num_years = 50 //for calculations involving npv
+preperation_time = 1 //years - time needed before starting the intervention
+cover_time = 4 //years - We assume that the charity would run the campaign in all target regions over the scope of 4 years, i.e. 25% of the regions in each year
+run_time_unsuccessful = 3 //years - How long charity runs if unsuccessful
+run_time_successful = 5 //years - How long charity program runs if successful
+
+// Timing of behavior and effect
+avg_delay_of_behavior = 1 //years - Average delay in behavior change
+migrate_return_ratios = {
+    "return without finding job": 0.3, // Based on Baseler (2022)'s figure for 70% of migrants having a job in the past week
+    "return after 1 year": 0.3, // A guess
+    "return after 2 years": 0.1, // Baseler (2022) observe that 40% of migrants stay in Nairobi for at least two years; I'm splitting it over this row and the next
+    "stay indefinitely": 0.3
+}
+
+rise_in_effect_each_year = ss(beta(8*1,8*19)) // This is a beta distribution with odds ratio of 1:19, and the multiplier of 8 is to get to the estimated [3%,8%] CI
+years_before_plateau = ss(4 to 12) // number of years before the effect stops increasing. 
+
+// interesting to note that the way the above couple of lines will be used is in modeling epistemic uncertainty, not aleatoric (statistical) uncertainty.
+// That is, the model assumes all people in the population are affected by the intervention in exactly the same way, but we don't know what that way is.
+// We can model this differently if we want.
+
+// Key data
+avg_consumption = 1004 //USD per year - Estimate, based on the fact that 42% of rural dwellers live in extreme poverty (<$2.15). The median earner must be bit above this figure, and the average earner will be a bit higher still (due to the skewness of the income distribution). My guess is $2.75 per day. I assume that virtually all of this is consumed.
+pop_growth_rate = 2.58/100 //per year - This has been quite stable for decades
+
+// Key assumptions
+discount_rate = ss(beta(10*4,10*96)) // epistemic uncertainty. If we want this to change every year, I think we can remove the "ss()", but I'm not sure and that'd probably lead to unexpected behavior
+chance_change_happen_anyway = ss(beta(12*1.5,12*98.5))
+prob_of_success = ss(beta(5*1,5*1))
+
+
+// -------------------------
+// Costs
+// -------------------------
+
+
+// FIXED CHARITY COSTS				
+overhead_year_1 = 125k //USD - Overhead in year 1
+overhead_scale = 225k //USD - Overhead at scale
+
+// VARIABLE CHARITY COSTS
+// Basic data for cost calcualtion
+num_radio_stations = 4 //How many different radio stations will this run on each year at scale
+num_ads_per_day_per_station = 5 //Number of ads per day per station
+
+// Radio advertising – airtime costs
+cost_per_60_ads = 30 to 100 //USD - Cost for running an ad 60 times
+ad_months_per_station = 3 //How long would the campaign run for each year per station
+num_ads_per_year =  num_radio_stations*(365.25*ad_months_per_station/12)*num_ads_per_day_per_station //Total number of ads per year
+
+total_ad_cost = cost_per_60_ads*num_ads_per_year //Total cost of airing ads per year, assuming we run each ad 60 times
+
+// Radio edutainment – airtime costs
+cost_per_minute = 30 to 100 //USD - Cost per minute of longer shows compared to short ads
+
+
+// Overhead - Year 1	total $	$125,000		
+// Overhead - Scale 	total $	$225,000		
+// 2. VARIABLE CHARITY COSTS				
+// Basic data for cost calcualtion				
+// How many different radio stations will this run on each year at scale	count	4		
+// Radio advertising – airtime costs				
+// Cost for 60 ads	$	$55.7		
+// How long would the campaign run for each year per station	months/station	3		
+// Number of ads per day per station	count/day/station	5		
+// Total number of ads per year	count/year	1,826		
+// Total cost of airing ads per year	$/year	$101,795		
+// Radio edutainment – airtime costs				
+// Cost per minute of longer shows compared to short ads	%	50%	30%	70%
+// Length of edutainment show	minutes	20		
+// Cost of one edutainment show	$	$557		
+// How long would the campaign run for each year per station	months/station	3		
+// Number of shows per week per station	count/week/station	3		
+// Total number of shows per year	count/year	156		
+// Total cost of airing shows per year	$/year	$86,954		
+// Total airtime cost	$/year	$188,750		
+// Radio advertising – production costs				
+// Cost of production of one ad	$	$133		
+// Number of times we repeat each advert	count	50		
+// How many different ads	count/year	37		
+// Total production cost	$/year	$4,870		
+// Radio edutainment – production costs				
+// Cost of production of one edutainment show - estimate 1	$	$250		
+// Cost of production of one edutainment show - estimate 2	$	$2,500		
+//   Average of the two estimates	$	$1,375		
+// Average number of times repeat each edutainment show	count	5		
+// How many different shows	count/year	31		
+// Total production cost	$/year	$42,900		
+// Total variable charity costs for production and airtime				
+// Total variable charity costs for production and airtime	$/year	$338,315		
+// 3. NON-CHARITY COSTS				
+// Costs to government	$/year	0		
+// Costs to other charities	$/year	0		
+// Costs to otber non-benficaries	$/year	0		
