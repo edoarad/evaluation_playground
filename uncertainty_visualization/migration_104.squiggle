@@ -1,27 +1,45 @@
 // -------------------------
-// general functions 
+// general functions
 // -------------------------
-cost_effectiveness(cost, effect) = {
-    cost / effect
-}
-result(charity_cost, total_cost, effect_in_doubling_consumption, effect_in_DALYs) = {
-    Plot.dists({
-        dists: [
-            {name: "charity$/doubling", value: cost_effectiveness(charity_cost, effect_in_doubling_consumption)},
-            {name: "charity$/DALY", value: cost_effectiveness(charity_cost, effect_in_DALYs)},
-            {name: "total$/doubling", value: cost_effectiveness(total_cost, effect_in_doubling_consumption)},
-            {name: "total$/DALY", value: cost_effectiveness(total_cost, effect_in_DALYs)}
-        ]
-    })
-}
+cost_effectiveness(cost, effect) = cost / effect 
+result(
+  charity_cost,
+  total_cost,
+  effect_in_doubling_consumption,
+  effect_in_DALYs
+) = Plot.dists(
+  {
+    dists: [
+      {
+        name: "charity$/doubling",
+        value: cost_effectiveness(charity_cost, effect_in_doubling_consumption),
+      },
+      {
+        name: "charity$/DALY",
+        value: cost_effectiveness(charity_cost, effect_in_DALYs),
+      },
+      {
+        name: "total$/doubling",
+        value: cost_effectiveness(total_cost, effect_in_doubling_consumption),
+      },
+      {
+        name: "total$/DALY",
+        value: cost_effectiveness(total_cost, effect_in_DALYs),
+      },
+    ],
+  }
+)
 
-npv(discount_rate, cashflows) = {
-    List.reduceReverse(cashflows, 0, {|x,y| x/(1+discount_rate)+y})
-}
+npv(discount_rate, cashflows) = List.reduceReverse(
+  cashflows,
+  0,
+  {|x, y|x / (1 + discount_rate) + y}
+)
 
 // This allows the same variable to be used in multiple locations without error
-ss(x) = { //ss stands for "sample set"
-    SampleSet.fromDist(x)
+ss(x) = {
+  //ss stands for "sample set"
+  SampleSet.fromDist(x)
 }
 
 // -------------------------
@@ -29,8 +47,8 @@ ss(x) = { //ss stands for "sample set"
 // -------------------------
 
 // Intervention timing
-num_years = 50 //for calculations involving npv
-preperation_time = 1 //years - time needed before starting the intervention
+num_years = 50 //for calculations involving npv 
+preperation_time = 1 //years - time needed before starting the intervention 
 cover_time = 4 //years - We assume that the charity would run the campaign in all target regions over the scope of 4 years, i.e. 25% of the regions in each year
 run_time_unsuccessful = 3 //years - How long charity runs if unsuccessful
 run_time_successful = 5 //years - How long charity program runs if successful
@@ -38,14 +56,14 @@ run_time_successful = 5 //years - How long charity program runs if successful
 // Timing of behavior and effect
 avg_delay_of_behavior = 1 //years - Average delay in behavior change
 migrate_return_ratios = {
-    "return without finding job": 0.3, // Based on Baseler (2022)'s figure for 70% of migrants having a job in the past week
-    "return after 1 year": 0.3, // A guess
-    "return after 2 years": 0.1, // Baseler (2022) observe that 40% of migrants stay in Nairobi for at least two years; I'm splitting it over this row and the next
-    "stay indefinitely": 0.3
+  "return without finding job": 0.3, // Based on Baseler (2022)'s figure for 70% of migrants having a job in the past week
+  "return after 1 year": 0.3, // A guess
+  "return after 2 years": 0.1, // Baseler (2022) observe that 40% of migrants stay in Nairobi for at least two years; I'm splitting it over this row and the next
+  "stay indefinitely": 0.3,
 }
 
-rise_in_effect_each_year = ss(beta(8*1,8*19)) // This is a beta distribution with odds ratio of 1:19, and the multiplier of 8 is to get to the estimated [3%,8%] CI
-years_before_plateau = ss(4 to 12) // number of years before the effect stops increasing. 
+rise_in_effect_each_year = ss(beta(8 * 1, 8 * 19)) // This is a beta distribution with odds ratio of 1:19, and the multiplier of 8 is to get to the estimated [3%,8%] CI
+years_before_plateau = ss(4 to 12) // number of years before the effect stops increasing.
 
 // interesting to note that the way the above couple of lines will be used is in modeling epistemic uncertainty, not aleatoric (statistical) uncertainty.
 // That is, the model assumes all people in the population are affected by the intervention in exactly the same way, but we don't know what that way is.
@@ -53,24 +71,23 @@ years_before_plateau = ss(4 to 12) // number of years before the effect stops in
 
 // Key data
 avg_consumption = 1004 //USD per year - Estimate, based on the fact that 42% of rural dwellers live in extreme poverty (<$2.15). The median earner must be bit above this figure, and the average earner will be a bit higher still (due to the skewness of the income distribution). My guess is $2.75 per day. I assume that virtually all of this is consumed.
-pop_growth_rate = 2.58/100 //per year - This has been quite stable for decades
+pop_growth_rate = 2.58 / 100 //per year - This has been quite stable for decades
 population = 13.94M //Population
-percent_population_rural = 14/100 //Percentage of population in rural (and non-periurban) areas
-rural_population = population*percent_population_rural //Rural population
+percent_population_rural = 14 / 100 //Percentage of population in rural (and non-periurban) areas
+rural_population = population * percent_population_rural //Rural population
 avg_household_size = 4.3 //Average household size
 
-
 // Key assumptions
-discount_rate = ss(beta(10*4,10*96)) // epistemic uncertainty. If we want this to change every year, I think we can remove the "ss()", but I'm not sure and that'd probably lead to unexpected behavior
-chance_change_happen_anyway = ss(beta(12*1.5,12*98.5))
-prob_of_success = ss(beta(5*1,5*1))
-
+discount_rate = ss(beta(10 * 4, 10 * 96)) // epistemic uncertainty. If we want this to change every year, I think we can remove the "ss()", but I'm not sure and that'd probably lead to unexpected behavior
+chance_change_happen_anyway = ss(beta(12 * 1.5, 12 * 98.5))
+prob_of_success = ss(beta(5 * 1, 5 * 1))
+consumption_doubling_to_DALY_ratio = 1/2.3 // DALYs per doubling of consumption
 
 // -------------------------
 // Costs
 // -------------------------
 
-// FIXED CHARITY COSTS				
+// FIXED CHARITY COSTS
 overhead_year_1 = 125k //USD - Overhead in year 1
 overhead_scale = 225k //USD - Overhead at scale
 
@@ -82,115 +99,318 @@ num_ads_per_day_per_station = 5 //Number of ads per day per station
 // Radio advertising – airtime costs
 cost_per_60_ads = ss(30 to 100) //USD - Cost for running an ad 60 times
 ad_months_per_station = 3 //How long would the campaign run for each year per station
-num_ads_per_year =  num_radio_stations*(365.25*ad_months_per_station/12)*num_ads_per_day_per_station //Total number of ads per year
+num_ads_per_year = num_radio_stations * (365.25 * ad_months_per_station / 12) *
+  num_ads_per_day_per_station //Total number of ads per year
 
-total_ad_cost = cost_per_60_ads*num_ads_per_year //Total cost of airing ads per year, assuming we run each ad 60 times
+total_ad_cost = cost_per_60_ads * num_ads_per_year //Total cost of airing ads per year, assuming we run each ad 60 times
 
 // Radio edutainment – airtime costs
-cost_edutainment_per_minute = ss(beta(10*1, 10*1)) * cost_per_60_ads // I think there might be an error in the orignal computation here. At least, it's not explicitly referencing the 60 ads figure, which seems suspicious
+cost_edutainment_per_minute = ss(beta(10 * 1, 10 * 1)) * cost_per_60_ads // I think there might be an error in the orignal computation here. At least, it's not explicitly referencing the 60 ads figure, which seems suspicious
 len_edutainment_show = 20 //minutes - Length of edutainment show
-cost_per_edutainment_show = cost_edutainment_per_minute*len_edutainment_show //Cost of one edutainment show
+cost_per_edutainment_show = cost_edutainment_per_minute * len_edutainment_show //Cost of one edutainment show
 edutainment_campaign_months_per_station = 3 //How long would the campaign run for each year per station
 edutainment_show_per_week_per_station = 3 //Number of shows per week per station
-num_edutainment_shows_per_year = num_radio_stations*edutainment_campaign_months_per_station/12*edutainment_show_per_week_per_station*52 //Total number of shows per year
-total_airtime_cost = num_edutainment_shows_per_year*cost_per_edutainment_show //Total cost of airing shows per year
+num_edutainment_shows_per_year = num_radio_stations *
+  edutainment_campaign_months_per_station /
+  12 *
+  edutainment_show_per_week_per_station *
+  52 //Total number of shows per year
+total_airtime_cost = num_edutainment_shows_per_year * cost_per_edutainment_show //Total cost of airing shows per year
 
 // Radio advertising – production costs
 cost_per_ad_production = ss(50 to 400) //USD - Cost of production of one ad
 num_times_repeat_ad = 50 //Number of times we repeat each advert [Note, didn't we assume 60 above? I'll ignore this]
-num_different_ads_per_year = num_ads_per_year/num_times_repeat_ad //How many different ads in total
-total_ad_production_cost_per_year = num_different_ads_per_year*cost_per_ad_production //Total production cost 
+num_different_ads_per_year = num_ads_per_year / num_times_repeat_ad //How many different ads in total
+total_ad_production_cost_per_year = num_different_ads_per_year *
+  cost_per_ad_production //Total production cost
 
 // Radio edutainment – production costs
-cost_of_edutainment_show = ss(250/2 to 2500*2) //USD - Cost of production of one edutainment show
+cost_of_edutainment_show = ss(250 / 2 to 2500 * 2) //USD - Cost of production of one edutainment show
 num_times_repeat_edutainment_show = ss(3 to 6) //Average number of times repeat each edutainment show
-num_different_edutainment_shows_per_year = num_edutainment_shows_per_year/num_times_repeat_edutainment_show //How many different shows
-total_edutainment_production_cost_per_year = num_different_edutainment_shows_per_year*cost_of_edutainment_show //Total production cost
+num_different_edutainment_shows_per_year = num_edutainment_shows_per_year /
+  num_times_repeat_edutainment_show //How many different shows
+total_edutainment_production_cost_per_year = num_different_edutainment_shows_per_year *
+  cost_of_edutainment_show //Total production cost
 
 // Total variable charity costs for production and airtime
-total_variable_charity_costs = total_ad_cost + total_airtime_cost + total_ad_production_cost_per_year + total_edutainment_production_cost_per_year
+total_variable_charity_costs = total_ad_cost + total_airtime_cost +
+  total_ad_production_cost_per_year +
+  total_edutainment_production_cost_per_year
 
 // NON-CHARITY COSTS
 // Costs to government
-cost_to_government = 0 //USD 
-cost_to_other_charities = 0 //USD 
+cost_to_government = 0 //USD
+cost_to_other_charities = 0 //USD
 cost_to_other_non_benficaries = 0 //USD
-total_non_charity_costs = cost_to_government + cost_to_other_charities + cost_to_other_non_benficaries
-
+total_non_charity_costs = cost_to_government + cost_to_other_charities +
+  cost_to_other_non_benficaries
 
 // -------------------------
 // Effects
 // -------------------------
-		
 
 // REACH OF CAMPAIGN
 num_families_exposed_to_campaign = {
-
-    // Number reached – estimate 1
-    num_families_exposed_to_campaign_1 = {
-        avg_audience_size_radio_station = ss(1M to 3M) //Average audience size of a radio station
-        overlap_radio_stations = 20/100 //Assume overlap of radio stations so less net audience
-        num_listeners_exposed_to_campaign_per_station = avg_audience_size_radio_station*(1-percent_population_rural)*overlap_radio_stations //Number of radio listeners exposed to campaign per station
-        num_listeners_exposed_to_campaing = num_radio_stations*num_listeners_exposed_to_campaign_per_station //Number of radio listeners exposed to campaign
-        num_listeners_per_household = ss(2 to 4) //Radio listeners per houshold
-        num_listeners_exposed_to_campaing/num_listeners_per_household //Number of families exposed to the campaign
-    }
-    // Number reached – estimate 2
-    num_families_exposed_to_campaign_2 = {
-        radio_coverage_in_rural_areas = 78.8/100 //Radio coverage in rural areas
-        percent_areas_covered_by_campaign = ss(beta(2*3, 2*1)) //Percentage of these areas covered by the campaign
-        percent_families_with_radio_who_receive_message = ss(beta(5*1, 5*1)) //Percentage of families with radio who receive the message
-        people_exposed_to_campaign = rural_population*radio_coverage_in_rural_areas*percent_areas_covered_by_campaign*percent_families_with_radio_who_receive_message //People exposed to the campaign
-        people_exposed_to_campaign/avg_household_size //Number of families exposed to the campaign
-    }
-    // Number reached – total per year
-    (num_families_exposed_to_campaign_1 + num_families_exposed_to_campaign_2)/2 //Number reached – total per year
+  // Number reached – estimate 1
+  num_families_exposed_to_campaign_1 = {
+    avg_audience_size_radio_station = ss(1M to 3M) //Average audience size of a radio station
+    overlap_radio_stations = 20 / 100 //Assume overlap of radio stations so less net audience
+    num_listeners_exposed_to_campaign_per_station = avg_audience_size_radio_station *
+      (1 - percent_population_rural) *
+      overlap_radio_stations //Number of radio listeners exposed to campaign per station
+    num_listeners_exposed_to_campaing = num_radio_stations *
+      num_listeners_exposed_to_campaign_per_station //Number of radio listeners exposed to campaign
+    num_listeners_per_household = ss(2 to 4) //Radio listeners per houshold
+    num_listeners_exposed_to_campaing / num_listeners_per_household //Number of families exposed to the campaign
+  }
+  // Number reached – estimate 2
+  num_families_exposed_to_campaign_2 = {
+    radio_coverage_in_rural_areas = 78.8 / 100 //Radio coverage in rural areas
+    percent_areas_covered_by_campaign = ss(beta(2 * 3, 2 * 1)) //Percentage of these areas covered by the campaign
+    percent_families_with_radio_who_receive_message = ss(beta(5 * 1, 5 * 1)) //Percentage of families with radio who receive the message
+    people_exposed_to_campaign = rural_population *
+      radio_coverage_in_rural_areas *
+      percent_areas_covered_by_campaign *
+      percent_families_with_radio_who_receive_message //People exposed to the campaign
+    people_exposed_to_campaign / avg_household_size //Number of families exposed to the campaign
+  }
+  // Number reached – total per year
+  (num_families_exposed_to_campaign_1 + num_families_exposed_to_campaign_2) / 2 //Number reached – total per year
 }
 // BEHAVIOUR CHANGE (IN AUDIENCE REACHED)
 // Percentage of message-receiving families who send a migrant within 2 years
 percent_families_sending_migrant_within_2_years = {
-    estimate = ss(beta(0.3*12.3, 0.3*(100-12.3))) //Percentage of message-receiving families who send a migrant within 2 years
-    internal_validity_discount = 50/100 //Internal validity discount
-    external_validity_discount = 30/100 //External validity discount
-    estimate*(1-internal_validity_discount)*(1-external_validity_discount) // the discounted value
+  estimate = ss(beta(0.3 * 12.3, 0.3 * (100 - 12.3))) //Percentage of message-receiving families who send a migrant within 2 years
+  internal_validity_discount = 50 / 100 //Internal validity discount
+  external_validity_discount = 30 / 100 //External validity discount
+  estimate * (1 - internal_validity_discount) * (1 - external_validity_discount) // the discounted value
 }
 
 number_migrants_sent_per_family = 1 //Number of migrants sent per family
 
-new_migrants_per_year = num_families_exposed_to_campaign
+new_migrants_per_year = num_families_exposed_to_campaign * number_migrants_sent_per_family * percent_families_sending_migrant_within_2_years 
 
 // Income & consumption effects on the migrant
 // Short-term earning effects on the migrant – initial estimate
 short_term_earning_effects_on_migrant_initial_estimate = {
-    estimate = ss(1.1 to 2.3) //Short-term earning effects on the migrant – initial estimate with mean about 160%
-    internal_validity_discount = 50/100 //Internal validity discount
-    external_validity_discount = 30/100 //External validity discount
-    estimate*(1-internal_validity_discount)*(1-external_validity_discount) // the discounted value
+  estimate = ss(1.1 to 2.3) //Short-term earning effects on the migrant – initial estimate with mean about 160%
+  internal_validity_discount = 50 / 100 //Internal validity discount
+  external_validity_discount = 30 / 100 //External validity discount
+  estimate * (1 - internal_validity_discount) * (1 - external_validity_discount) // the discounted value
 }
-percent_sent_back_as_remittances = 22/100 //Percentage of extra income sent back as remittances [Enter some uncertainty here]
-percent_consumed_by_migrant = 90/100 //Proportion of extra income that is consumed by migrant [Enter some uncertainty here]
-percent_of_increased_consumption = short_term_earning_effects_on_migrant_initial_estimate*percent_consumed_by_migrant*(1-percent_sent_back_as_remittances) 
-consumption_doublings = log(1+percent_of_increased_consumption)/log(2) //Consumption doublings
+percent_sent_back_as_remittances = 22 / 100 //Percentage of extra income sent back as remittances [Enter some uncertainty here]
+percent_consumed_by_migrant = 90 / 100 //Proportion of extra income that is consumed by migrant [Enter some uncertainty here]
+percent_of_increased_consumption = short_term_earning_effects_on_migrant_initial_estimate *
+  percent_consumed_by_migrant *
+  (1 - percent_sent_back_as_remittances)
+consumption_doublings = log(1 + percent_of_increased_consumption) / log(2) //Consumption doublings
 
 // Effects on the migrant's family
-increased_family_income_due_to_remittences = percent_sent_back_as_remittances*short_term_earning_effects_on_migrant_initial_estimate
-increased_family_income_due_to_higher_local_wages = 2.3/100 //Increase in income due to higher local wages
-percent_consumed_by_village_dwellers = 90/100 //Proportion of extra income that is consumed by village dwellers
+increased_family_income_due_to_remittences = percent_sent_back_as_remittances *
+  short_term_earning_effects_on_migrant_initial_estimate
+increased_family_income_due_to_higher_local_wages = 2.3 / 100 //Increase in income due to higher local wages
+percent_consumed_by_village_dwellers = 90 / 100 //Proportion of extra income that is consumed by village dwellers
 total_increased_family_consumption = {
-    income_effect = increased_family_income_due_to_higher_local_wages + increased_family_income_due_to_remittences
-    validity_discount = 40/100
-    income_effect*(1-validity_discount)*percent_consumed_by_village_dwellers
+  income_effect = increased_family_income_due_to_higher_local_wages +
+    increased_family_income_due_to_remittences
+  validity_discount = 40 / 100
+  income_effect * (1 - validity_discount) * percent_consumed_by_village_dwellers
 }
-consumption_increase_per_family_member = total_increased_family_consumption/(avg_household_size-1) //Consumption increase per family member
+consumption_increase_per_family_member = total_increased_family_consumption /
+  (avg_household_size - 1) //Consumption increase per family member
 
 // Harms / costs to beneficaries
 cost_of_one_way_trip_by_bus = {
-    cost_of_one_way_trip_by_bus_bangaladesh = 5 //USD - Cost of a one-way bus trip in Bangladesh
-    rwanda_gdp_per_capita = 822 //USD - GDP per capita - Rwanda - 2021
-    bangladesh_gdp_per_capita = 630 //USD - GDP per capita - Bangladesh - 2008
-    cost_of_one_way_trip_by_bus_bangaladesh*rwanda_gdp_per_capita/bangladesh_gdp_per_capita // Assuming that cost scales roughly proportionately with GDP per capita
+  cost_of_one_way_trip_by_bus_bangaladesh = 5 //USD - Cost of a one-way bus trip in Bangladesh
+  rwanda_gdp_per_capita = 822 //USD - GDP per capita - Rwanda - 2021
+  bangladesh_gdp_per_capita = 630 //USD - GDP per capita - Bangladesh - 2008
+  cost_of_one_way_trip_by_bus_bangaladesh * rwanda_gdp_per_capita /
+    bangladesh_gdp_per_capita // Assuming that cost scales roughly proportionately with GDP per capita
 }
-cost_of_one_way_trip_by_bus
+
+// -------------------------
+// Calculations
+// -------------------------
+
+years = List.upTo(1, num_years) //List of years
+
+yearly_scale_of_charity_ops_if_successful = List.map(
+    years,
+    {|year|
+        {
+            if year == 1 then 0 else {
+                if year <= run_time_successful then 1 / cover_time else 0
+            }
+        }
+    }
+)
+
+yearly_scale_of_charity_ops = List.map(
+    years,
+    {|year|
+        {
+            percent_of_area_if_successful = yearly_scale_of_charity_ops_if_successful[year-1] // indexing starts at 0
+            if year <= run_time_unsuccessful then 
+                percent_of_area_if_successful else
+                percent_of_area_if_successful * prob_of_success
+        }
+    }
+)
+
+// COSTS
+
+yearly_charity_cost = List.map(
+    years,
+    {|year|
+        {
+            overhead = {
+                if year == 1 then overhead_year_1 else {
+                    if year <= run_time_unsuccessful then overhead_scale else {
+                        if year <= run_time_successful then overhead_scale * prob_of_success else 0
+                        }  
+                    }
+            }
+            variable_costs = total_variable_charity_costs * yearly_scale_of_charity_ops[year-1] 
+            overhead + variable_costs
+        }
+    }
+)
+
+yearly_non_charity_cost = List.map(
+    years,
+    {|year|
+        total_non_charity_costs * yearly_scale_of_charity_ops[year-1]
+    }
+)
+
+// EFFECTS
+
+yearly_total_migrants = List.map(
+    years,
+    {|year|
+        {
+            new_migrants_per_year * prob_of_success * yearly_scale_of_charity_ops_if_successful[year-1]
+        }
+    }
+)
+indexed_migrants_by_year_or_0(year) = if year < 1 then 0 else yearly_total_migrants[year-1] // indexing starts at 0
 
 
+yearly_total_working_migrants = List.map(
+    years,
+    {|year|
+        {
 
+            workers_new = indexed_migrants_by_year_or_0(year) * (1 - migrate_return_ratios["return without finding job"])
+            workers_1_year = indexed_migrants_by_year_or_0(year-1) * (1 - migrate_return_ratios["return after 1 year"] - migrate_return_ratios["return without finding job"])
+            // workers_2_years = indexed_migrants_by_year_or_0(year-2) * (1 - migrate_return_ratios["return after 2 years"] - migrate_return_ratios["return after 1 year"] - migrate_return_ratios["return without finding job"])  // this isn't used in the original model, an error I think
+            workers_indefinite = if year>2 then {
+                List.reduce(List.map(List.upTo(1, year-2), indexed_migrants_by_year_or_0), 0, {|x,y| x+y}) * migrate_return_ratios["stay indefinitely"] // this is a quick way to sum the list of all years before the current year
+            } else 0
+            workers_new + workers_1_year + workers_indefinite
+        }
+    }
+)
+
+yearly_total_returning_migrants = List.map(
+    years,
+    {|year|
+        {
+            indexed_migrants_by_year_or_0(year) * migrate_return_ratios["return without finding job"] +
+            indexed_migrants_by_year_or_0(year-1) * migrate_return_ratios["return after 1 year"] +
+            indexed_migrants_by_year_or_0(year-2) * migrate_return_ratios["return after 2 years"]
+        }
+    }
+)
+
+yearly_avg_time_migrant_at_destination = List.map(
+    years,
+    {|year| 1} // TODO placeholder
+)
+
+_yearly_increase_in_consumption = List.map(
+    years,
+    {|year|
+        {
+            percent_of_increased_consumption * 
+            (1 + rise_in_effect_each_year)^(min(yearly_avg_time_migrant_at_destination[year-1], years_before_plateau))
+        }
+    }
+)
+
+yearly_migrant_consumption_doublings = List.map(
+    years,
+    {|year|
+        {
+            increase_in_consumption = _yearly_increase_in_consumption[year-1] // indexing starts at 0
+            total_working_migrants = yearly_total_working_migrants[year-1] // indexing starts at 0
+            total_working_migrants * log(1+increase_in_consumption)/log(2)
+        }
+    }
+)
+
+yearly_family_consumption_doublings = List.map(
+    years,
+    {|year|
+        {
+            increase_in_consumption = {
+                consumption_increase_per_family_member * 
+                (1 + rise_in_effect_each_year)^(min(year, years_before_plateau))
+            }
+            total_working_migrants = yearly_total_working_migrants[year-1] // indexing starts at 0
+            total_working_migrants * (avg_household_size-1) * log(1+increase_in_consumption)/log(2)
+        }
+    }
+)
+
+
+yearly_outward_cost_in_doublings = List.map(
+    years,
+    {|year|
+        {
+            decrease_in_consumption = {
+                cost_of_one_way_trip_by_bus / avg_consumption 
+            }
+            total_migrants = yearly_total_migrants[year-1] // indexing starts at 0
+            total_migrants * log(1-decrease_in_consumption)/log(2)
+        }
+    }
+)
+
+
+yearly_return_cost_in_doublings = List.map(
+    years,
+    {|year|
+        {
+            decrease_in_consumption = {
+                adjusted_avg_consumption = avg_consumption * (1 + _yearly_increase_in_consumption[year-1])
+                cost_of_one_way_trip_by_bus / adjusted_avg_consumption
+            }
+            total_migrants = yearly_total_returning_migrants[year-1] // indexing starts at 0
+            total_migrants * log(1-decrease_in_consumption)/log(2)
+        }
+    }
+)
+
+yearly_total_consumption_doublings = List.map(
+  years,
+  {|year| 
+        index = year-1
+        yearly_migrant_consumption_doublings[index] +
+        yearly_family_consumption_doublings[index] +
+        yearly_outward_cost_in_doublings[index] +
+        yearly_return_cost_in_doublings[index]
+  }
+) 
+
+total_charity_cost = npv(discount_rate, yearly_charity_cost)
+total_non_charity_cost = npv(discount_rate, yearly_non_charity_cost)
+
+total_consumption_doublings = npv(discount_rate, yearly_total_consumption_doublings)
+total_DALYs = total_consumption_doublings * consumption_doubling_to_DALY_ratio
+
+result(
+  total_charity_cost,
+  total_non_charity_cost,
+  total_consumption_doublings,
+  total_DALYs)
