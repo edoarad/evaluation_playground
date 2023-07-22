@@ -18,14 +18,14 @@ result(
         name: "charity$/DALY",
         value: cost_effectiveness(charity_cost, effect_in_DALYs),
       },
-      {
-        name: "total$/doubling",
-        value: cost_effectiveness(total_cost, effect_in_doubling_consumption),
-      },
-      {
-        name: "total$/DALY",
-        value: cost_effectiveness(total_cost, effect_in_DALYs),
-      },
+    //   {
+    //     name: "total$/doubling",
+    //     value: cost_effectiveness(total_cost, effect_in_doubling_consumption),
+    //   },
+    //   {
+    //     name: "total$/DALY",
+    //     value: cost_effectiveness(total_cost, effect_in_DALYs),
+    //   },
     ],
   }
 )
@@ -409,8 +409,10 @@ total_non_charity_cost = npv(discount_rate, yearly_non_charity_cost)
 total_consumption_doublings = npv(discount_rate, yearly_total_consumption_doublings)
 total_DALYs = total_consumption_doublings * consumption_doubling_to_DALY_ratio
 
-result(
+res = result(
   total_charity_cost,
-  total_non_charity_cost,
+  total_non_charity_cost + total_charity_cost,
   total_consumption_doublings,
   total_DALYs)
+
+
