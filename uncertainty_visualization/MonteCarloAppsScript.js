@@ -147,6 +147,10 @@ class UserSheet{
     const formulas = dr.getFormulas().slice(numHeaderRows);
     return [values, formulas];
   }
+
+  getName(){
+    return this.sheetName;
+  }
 }
 
 function makeRandomValuesSheet(spreadsheet, variableNames, iterations, sheetName){
@@ -200,7 +204,7 @@ function flattenReindexedRow(row, col, numRows){
   return row + (col-1)*numRows;
 }
 
-function makeCalculationSheet(spreadsheet, calculations, iterations, newCalculationSheetName, newInputsSheetName){
+function makeCalculationSheet(spreadsheet, calculations, iterations, newCalculationSheetName, inputs, newInputsSheetName){
   const newCalculationSheet = _newSheetByName(spreadsheet, newCalculationSheetName);
   const numYears = calculations.numRows - 1;
   
@@ -213,16 +217,65 @@ function makeCalculationSheet(spreadsheet, calculations, iterations, newCalculat
       for(let year = 1; year <= numYears; year++){
         newFormulas[flattenReindexedRow(row, year, calculations.length)].push(replaceFormulaReferences(calculations.formulas[row][year], (s) => {
           let rc = getReferenceComponents(s);
-          if(rc.refSheet == newInputsSheetName){
-            return inputUpdateReference(s, i);
+          if(rc.refSheet == inputs.GetName()){
+            return fromReferenceComponents({refSheet: newInputsSheetName,
+              A1: inputUpdateReference(s.split("!")[1], i),
+              B2: ""});
           }
           if(rc.refSheet){
             return s; // Note that we don't support "forward" references to Outputs or internal references 
           }
-          if()
-        }
+          if(rc.B2){
+            throw Error("Can't reference a range in a calculation (yet)");
+          }
+          let [col, row] = fromA1(rc.A1);
+          return fromReferenceComponents({refSheet: "",
+                                          A1: toA1(flattenReindexedRow(row, col, calculations.length), i+2),
+                                          B2: ""});
+        }));
       }
     }
+  }
+  newCalculationSheet.getRange(2,2,calculations.length*numYears, iterations).setFormulas(newFormulas);
+}
+
+function makeOutputsSheet(spreadsheet, outputs, iterations, outputs, newOutputsSheetName, inputs, newCalculationsSheetName, newInputsSheetName){
+  const newOutputsSheet = _newSheetByName(spreadsheet, newOutputsSheetName);
+  newOutputsSheet.getRange(1,1,1,iterations+1).setValues([["Iteration"]].concat(Array.from(Array(iterations), (v,k) => k+1).map((x) => [x])));
+  newOutputsSheet.getRange(2,1,outputs.length,1).setValues(map(outputs.names, (x) => [x]));
+
+  let newFormulas = Array.from(new Array(outputs.length), () => []);
+  for(let i = 0; i < iterations; i++) {
+    for(let row = 0; row < iterations; row++){
+      // the following assumes that the values are at column B
+      newFormulas[row].push(replaceFormulaReferences(outputs.formulas[row][1], (s) => {
+        let rc = getReferenceComponents(s);
+        if(rc.refSheet == inputs.getName()){
+          return fromReferenceComponents({refSheet: newInputsSheetName,
+            A1: inputUpdateReference(s.split("!")[1], i),
+            B2: ""});        }
+        if(rc.refSheet == calculations.GetName()){
+          if(rc.B2){
+            throw Error("Can't reference a range in a calculation (yet)");
+          }
+          let [col, row] = fromA1(rc.A1);
+          return fromReferenceComponents({refSheet: newOutputsSheetName,
+                                          A1: toA1(row, i+2),
+                                          B2: ""});
+        }
+        if(rc.refSheet){
+          return s;
+        }
+        if(rc.B2){
+          throw Error("Can't reference a range in a calculation (yet)");
+        }
+        if(rc.A1 != s){
+          throw Error("I made a mistake :(");
+        }
+        return offsetA1(rc.A1, 0, i+2);
+      }));
+    }
+  }
 }
 
 function mc(iterations=10, randomValuesSheet=null) {
@@ -233,62 +286,9 @@ function mc(iterations=10, randomValuesSheet=null) {
 
     const randomValuesSheet = randomValuesSheet || makeRandomValuesSheet(spreadsheet, inputs.names, iterations, "mc rand");
     const newInputsSheet  = makeInputValuesSheet(spreadsheet, inputs, iterations, "mc inputs", randomValuesSheet.getName());
-    const newCalculationSheet = _newSheetByName(spreadsheet, "mc calc");
+    const newCalculationSheet = makeCalculationSheet(spreadsheet, calculations, iterations, "mc calc", inputs, newInputsSheet.getName());
     const newOutputsSheet = _newSheetByName(spreadsheet, "mc out");
     
-    const calculationsSheet = spreadsheet.getSheetByName("Calculations");
-    const calculation = calculationsSheet.getDataRange();
-    const calculationValues = calculation.getValues().slice(1);
-    const calculationFormulas = calculation.getFormulas().slice(1);
-    const numYears = calculationValues[0].length - 1;
-  
-    const calculationNames = calculationValues.map((l) => l[0]);
-    const flattenCalculationNames = Array.from(Array(numYears), (v,k) => k+1).reduce((x,y) => x.concat(calculationNames.map((n) => y + "_" + n)), []);
-    
-    function updatedFormula(i, formula, value){
-      if(formula){
-        return formula.replace(regex, (s) => {
-          if(s.includes("\!")){
-            let [sheetName, loc] = s.split("!").map((st) => st.replace("'", "")); //assumes that sheetName doesn't have "'"s, but that'd be silly
-            if(sheetName == inputs.sheetName){ // this uses a variable from "Inputs", so we need to change it to reference the previous calculations
-              let [col, row] = [String(loc.match(/[A-Z]+/)), Number(loc.match(/\d+/))];
-              if(col!="B"){
-                throw EvalError("referenced column '"+col+"' in 'inputs', which is not B");
-              }
-              return "'" + newInputsSheet.getName() + "'!" + toA1(row-1, i+2);
-            } else {
-              if (sheetName == calculationsSheet.getName()){
-                throw Error("why do you reference your own sheet?")
-              } else {
-                return s;
-              }
-            }          
-          }
-          else { // this cell references another computation
-            let [col, row] = [String(s.match(/[A-Z]+/)), Number(s.match(/\d+/))];
-            let colNum = _colABCToNum(col);
-            let newRow = row - 1 + (colNum-1-1)*calculationNames.length
-            return toA1(newRow, i+2)           
-          }
-        })
-      } else {
-        return value
-      }
-    }
-  
-    let newCalculationFormulas = Array.from(new Array(flattenCalculationNames.length), () => []);
-  
-    for(let i=0; i<iterations; i++){
-      for(let row=0; row<calculationNames.length; row++){
-        for(let year = 1; year <= numYears; year++){
-          let newformula = updatedFormula(i, calculationFormulas[row][year], calculationValues[row][year]);
-          newCalculationFormulas[row + (year-1)*calculationNames.length].push(newformula);
-        }
-      }
-    }
-  
-    newCalculationSheet.getRange(1, 1, flattenCalculationNames.length).setValues(flattenCalculationNames.map(x => [x]));
-    newCalculationSheet.getRange(1, 2, flattenCalculationNames.length, iterations).setFormulas(newCalculationFormulas);
   
     const outputsSheet = spreadsheet.getSheetByName("Outputs");
     const outputs = outputsSheet.getDataRange();
