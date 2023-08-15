@@ -112,19 +112,21 @@ class UserSheet{
     
     this.sheet = spreadsheet.getSheetByName(name);
     [this._values, this._formulas] = this.getValuesAndFormulas(numHeaderRows);
+    this.formulas = this._formulas.map((row, index) => row.map((cell, col) => cell || ("="+String(this._values[index][col]))));
     this.length = this._values.length;
+    this.numRows = this._values[0].length;
 
     this.names = this._values.map((row) => row[assumptions.nameColumn]);
     this.pointEstimates = new Array(this.length);
     for(let row=0; row<this.length; row++){
       let formula = this._formulas[row][assumptions.pointEstimateColumn];
       let value = String(this._values[row][assumptions.pointEstimateColumn]);
-      this.pointEstimates[row] = formula || ("="+value);
+      this.pointEstimates[row] = formula || ("="+String(value));
     }
     this.uncertaintyParameters = Array.from(new Array(this.length), () => new Object());
     for(let row=0; row<this.length; row++){
       Object.entries(assumptions.parameterColumns).forEach(([key, col]) => {
-        this.uncertaintyParameters[row][key] = this._formulas[row][col] || this._values[row][col];
+        this.uncertaintyParameters[row][key] = this._formulas[row][col] || ("="+this._values[row][col]);
       });
     }
     this.isEstimateable = new Array(this.length);
@@ -154,27 +156,27 @@ function makeRandomValuesSheet(spreadsheet, variableNames, iterations, sheetName
   return randomValuesSheet;
 }
 
+function inputUpdateReference(reference, i){
+  let rc = getReferenceComponents(reference);
+  if(rc.refSheet){
+    return reference; // Note that we don't support "forward" references to Computations or Outputs or internal references to Inputs
+  } 
+  if(Number(startCol) != assumptions.pointEstimateColumn){
+    throw Error("Input formulas can only reference the point estimate column");
+  }
+  if(!rc.B2 && fromA1(rc.A1)[0] != fromA1(rc.B2)[0]){
+    throw Error("Input formulas can only reference a single column");
+  }
+  
+  return fromReferenceComponents({refSheet: "", 
+                                  A1:offsetA1(rc.A1, 0, i), 
+                                  B2: offsetA1(rc.B2, 0, i)});
+}
+
 function makeInputValuesSheet(spreadsheet, inputs, iterations, newInputSheetName, newRandomValuesSheetName){
   const newInputsSheet = _newSheetByName(spreadsheet, newInputSheetName);
   newInputsSheet.getRange(1,1,1,iterations+1).setValues([["Iteration"]].concat(Array.from(Array(iterations), (v,k) => k+1).map((x) => [x])));
   newInputsSheet.getRange(2,1,inputs.length,1).setValues(map(inputs.names, (x) => [x]));
-
-  function inputUpdateReference(reference, i){
-    let rc = getReferenceComponents(reference);
-    if(rc.refSheet){
-      return reference; // Note that we don't support "forward" references to Computations or Outputs or internal references to Inputs
-    } 
-    if(Number(startCol) != assumptions.pointEstimateColumn){
-      throw Error("Input formulas can only reference the point estimate column");
-    }
-    if(!rc.B2 && fromA1(rc.A1)[0] != fromA1(rc.B2)[0]){
-      throw Error("Input formulas can only reference a single column");
-    }
-    
-    return fromReferenceComponents({refSheet: "", 
-                                    A1:offsetA1(rc.A1, 0, i), 
-                                    B2: offsetA1(rc.B2, 0, i)});
-  }
 
   let newFormulas = Array.from(new Array(inputs.length), () => []);
   for(let i = 0; i < iterations; i++) {
@@ -194,6 +196,35 @@ function makeInputValuesSheet(spreadsheet, inputs, iterations, newInputSheetName
   }
 }
 
+function flattenReindexedRow(row, col, numRows){
+  return row + (col-1)*numRows;
+}
+
+function makeCalculationSheet(spreadsheet, calculations, iterations, newCalculationSheetName, newInputsSheetName){
+  const newCalculationSheet = _newSheetByName(spreadsheet, newCalculationSheetName);
+  const numYears = calculations.numRows - 1;
+  
+  newCalculationSheet.getRange(1,1,1,iterations+1).setValues([["Iteration"]].concat(Array.from(Array(iterations), (v,k) => k+1).map((x) => [x])));
+  newCalculationSheet.getRange(2,1,calculations.length*numYears,1).setValues(Array.from(Array(calculations.length), (v,k) => k+1).reduce((x,y) => x.concat(calculations.names.map((name) => [y + "_" + name])), []));
+  
+  let newFormulas = Array.from(new Array(calculations.length*numYears), () => []);
+  for(let i = 0; i < iterations; i++) {
+    for(let row=0; row<calculations.length; row++){
+      for(let year = 1; year <= numYears; year++){
+        newFormulas[flattenReindexedRow(row, year, calculations.length)].push(replaceFormulaReferences(calculations.formulas[row][year], (s) => {
+          let rc = getReferenceComponents(s);
+          if(rc.refSheet == newInputsSheetName){
+            return inputUpdateReference(s, i);
+          }
+          if(rc.refSheet){
+            return s; // Note that we don't support "forward" references to Outputs or internal references 
+          }
+          if()
+        }
+      }
+    }
+}
+
 function mc(iterations=10, randomValuesSheet=null) {
     const spreadsheet = SpreadsheetApp.getActive();
     const inputs = new UserSheet(spreadsheet, assumptions.sheetNames.inputs);
@@ -201,52 +232,10 @@ function mc(iterations=10, randomValuesSheet=null) {
     const outputs = new UserSheet(spreadsheet, assumptions.sheetNames.outputs);
 
     const randomValuesSheet = randomValuesSheet || makeRandomValuesSheet(spreadsheet, inputs.names, iterations, "mc rand");
-    const newInputsSheet  = _newSheetByName(spreadsheet, "mc inputs");
+    const newInputsSheet  = makeInputValuesSheet(spreadsheet, inputs, iterations, "mc inputs", randomValuesSheet.getName());
     const newCalculationSheet = _newSheetByName(spreadsheet, "mc calc");
     const newOutputsSheet = _newSheetByName(spreadsheet, "mc out");
-  
-    newInputsSheet.getRange(1,1,inputs.length,1).setValues(inputs.names);
-    let newFormulas = Array.from(new Array(inputs.length), () => []);
-  
-
-  
-    // TODO: the following code doesn't work for ranges (A1:B2, say)
-  
-  
-    for(let i = 0; i < iterations; i++) {
-      for(let row = 0; row < inputNames.length; row++){
-        if(inputs.formulas[row][1]) { 
-          let f = inputs.formulas[row][1].replace(regex, (s) => { 
-            if(s.includes("\!")){ 
-              // then this is a reference to another sheet, no change is needed
-              return s;
-            }
-            let toNewCoordinates = (str) => {
-              let noDollar = str.replace("$", "");
-              if(!/^B\d+$/.test(noDollar)){ //TODO: magic "B"
-                throw EvalError("Can only use formulas that reference other sheets or the B column");
-              }
-              return toA1(Number(noDollar.substring(1))-1, i+2)
-            }
-            return s.split(":").map(toNewCoordinates).join(":")
-          });
-          
-          newFormulas[row].push(f);
-        }
-        else{
-          let [name, expected, minimum, maximum] = inputs.values[row];
-          if(!minimum || !maximum || Number(minimum) == Number(maximum)){
-            newFormulas[row].push(expected);
-          } else {
-            newFormulas[row].push("=NORMINV('"+randomValuesSheet.getName()+"'!"+toA1(row+1, i+2)+", "+ expected + ", "+ (maximum-minimum)/(1.96*2) +")") //TODO: replace this with custom distribution
-          }
-        }
-      }
-    }
-  
-    newInputsSheet.getRange(1,2,inputNames.length, iterations).setFormulas(newFormulas);
-  
-  
+    
     const calculationsSheet = spreadsheet.getSheetByName("Calculations");
     const calculation = calculationsSheet.getDataRange();
     const calculationValues = calculation.getValues().slice(1);
